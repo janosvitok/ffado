@@ -1,0 +1,226 @@
+#
+# Copyright (C) 2007-2008 Arnold Krille
+# Copyright (C) 2007-2008 Pieter Palmers
+#
+# This file is part of FFADO
+# FFADO = Free Firewire (pro-)audio drivers for linux
+#
+# FFADO is based upon FreeBoB.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+import os
+
+Import( 'env' )
+
+env.AppendUnique( CPPPATH=["#/", "#/src"] )
+
+libenv = env.Clone()
+
+ffado_source = env.Split( '\
+	devicemanager.cpp \
+	ffado.cpp \
+	ffadodevice.cpp \
+	debugmodule/debugmodule.cpp \
+	DeviceStringParser.cpp \
+	libavc/streamformat/avc_extended_stream_format.cpp \
+	libavc/musicsubunit/avc_descriptor_music.cpp \
+	libavc/musicsubunit/avc_musicsubunit.cpp \
+	libavc/audiosubunit/avc_audiosubunit.cpp \
+	libavc/audiosubunit/avc_function_block.cpp \
+	libavc/descriptors/avc_descriptor_cmd.cpp \
+	libavc/descriptors/avc_descriptor.cpp \
+	libavc/general/avc_extended_subunit_info.cpp \
+	libavc/general/avc_unit_info.cpp \
+	libavc/general/avc_generic.cpp \
+	libavc/general/avc_subunit_info.cpp \
+	libavc/general/avc_connect.cpp \
+	libavc/general/avc_signal_format.cpp \
+	libavc/general/avc_extended_cmd_generic.cpp \
+	libavc/general/avc_extended_plug_info.cpp \
+	libavc/general/avc_plug_info.cpp \
+	libavc/general/avc_unit.cpp \
+	libavc/general/avc_subunit.cpp \
+	libavc/general/avc_plug.cpp \
+	libavc/general/avc_vendor_dependent_cmd.cpp \
+	libavc/avc_definitions.cpp \
+	libavc/ccm/avc_signal_source.cpp \
+	libieee1394/configrom.cpp \
+	libieee1394/csr1212.c \
+	libieee1394/CycleTimerHelper.cpp \
+	libieee1394/ieee1394service.cpp \
+	libieee1394/IEC61883.cpp \
+	libieee1394/IsoHandler.cpp \
+	libieee1394/IsoHandlerManager.cpp \
+	libstreaming/StreamProcessorManager.cpp \
+	libstreaming/util/cip.c \
+	libstreaming/generic/StreamProcessor.cpp \
+	libstreaming/generic/Port.cpp \
+	libstreaming/generic/PortManager.cpp \
+	libutil/cmd_serialize.cpp \
+	libutil/Configuration.cpp \
+	libutil/OptionContainer.cpp \
+	libutil/PosixMutex.cpp \
+	libutil/PosixThread.cpp \
+	libutil/ringbuffer.c \
+	libutil/SystemTimeSource.cpp \
+	libutil/TimestampedBuffer.cpp \
+	libutil/Watchdog.cpp \
+	libcontrol/Element.cpp \
+	libcontrol/BasicElements.cpp \
+	libcontrol/MatrixMixer.cpp \
+	libcontrol/ClockSelect.cpp \
+	libcontrol/Nickname.cpp \
+')
+
+if env['SERIALIZE_USE_EXPAT']:
+	ffado_source.append('libutil/serialize_expat.cpp')
+	ffado_source.append('libutil/serialize_expat_xml.cpp')
+else:
+	ffado_source.append('libutil/serialize_libxml.cpp')
+
+
+bebob_source = env.Split( '\
+	bebob/bebob_avdevice.cpp \
+	bebob/bebob_avdevice_subunit.cpp \
+	bebob/bebob_avplug.cpp \
+	bebob/bebob_dl_bcd.cpp \
+	bebob/bebob_dl_codes.cpp \
+	bebob/bebob_dl_mgr.cpp \
+	bebob/bebob_functionblock.cpp \
+	bebob/bebob_mixer.cpp \
+	bebob/focusrite/focusrite_generic.cpp \
+	bebob/focusrite/focusrite_saffire.cpp \
+	bebob/focusrite/focusrite_saffirepro.cpp \
+	bebob/focusrite/focusrite_cmd.cpp \
+	bebob/terratec/terratec_device.cpp \
+	bebob/terratec/terratec_cmd.cpp \
+	bebob/edirol/edirol_fa101.cpp \
+	bebob/edirol/edirol_fa66.cpp \
+	bebob/esi/quatafire610.cpp \
+	bebob/mackie/onyxmixer.cpp \
+' )
+bebob_pkgdata = env.Split( '\
+' )
+
+genericavc_source =  env.Split( '\
+	genericavc/avc_avdevice.cpp \
+' )
+
+genericavc_pkgdata = env.Split( '\
+' )	
+
+fireworks_source =  env.Split( '\
+	fireworks/fireworks_device.cpp \
+	fireworks/fireworks_control.cpp \
+	fireworks/fireworks_firmware.cpp \
+	fireworks/efc/efc_avc_cmd.cpp \
+	fireworks/efc/efc_cmd.cpp \
+	fireworks/efc/efc_cmds_hardware.cpp \
+	fireworks/efc/efc_cmds_hardware_ctrl.cpp \
+	fireworks/efc/efc_cmds_flash.cpp \
+	fireworks/efc/efc_cmds_mixer.cpp \
+	fireworks/efc/efc_cmds_monitor.cpp \
+	fireworks/efc/efc_cmds_ioconfig.cpp \
+	fireworks/fireworks_session_block.cpp \
+	fireworks/audiofire/audiofire_device.cpp \
+' )
+
+fireworks_pkgdata =  env.Split( '\
+' )
+
+motu_source = env.Split( '\
+	motu/motu_avdevice.cpp \
+	motu/motu_controls.cpp \
+	libstreaming/motu/MotuPort.cpp \
+	libstreaming/motu/MotuPortInfo.cpp \
+	libstreaming/motu/MotuReceiveStreamProcessor.cpp \
+	libstreaming/motu/MotuTransmitStreamProcessor.cpp \
+' )
+
+amdtp_source = env.Split( '\
+	libstreaming/amdtp/AmdtpPort.cpp \
+	libstreaming/amdtp/AmdtpPortInfo.cpp \
+	libstreaming/amdtp/AmdtpReceiveStreamProcessor.cpp \
+	libstreaming/amdtp/AmdtpTransmitStreamProcessor.cpp \
+' )
+
+source = ffado_source
+pkgdata = []
+if env['ENABLE_BEBOB']:
+	libenv.AppendUnique( CCFLAGS=["-DENABLE_BEBOB"] )
+	source += bebob_source
+	pkgdata += bebob_pkgdata
+if env['ENABLE_FIREWORKS']:
+	libenv.AppendUnique( CCFLAGS=["-DENABLE_FIREWORKS"] )
+	source += fireworks_source
+	pkgdata += fireworks_pkgdata
+if env['ENABLE_MOTU']:
+	libenv.AppendUnique( CCFLAGS=["-DENABLE_MOTU"] )
+	source += motu_source
+
+# The list of devices needing GENERICAVC is controlled in ../SConstruct
+if env['ENABLE_GENERICAVC']:
+	libenv.AppendUnique( CCFLAGS=["-DENABLE_GENERICAVC"] )
+	source += amdtp_source
+	source += genericavc_source
+	pkgdata += genericavc_pkgdata
+
+if not env.GetOption( "clean" ):
+	libenv.MergeFlags( "-lrt" )
+	libenv.MergeFlags( env['LIBRAW1394_FLAGS'] )
+	libenv.MergeFlags( env['LIBAVC1394_FLAGS'] )
+	libenv.MergeFlags( env['LIBIEC61883_FLAGS'] )
+	if not env['SERIALIZE_USE_EXPAT']:
+		libenv.MergeFlags( env['LIBXML26_FLAGS'] )
+	else:
+		libenv.PrependUnique( LIBS=["expat"] )
+
+# add the libconfig
+libenv.AppendUnique( CPPPATH=["#/external/libconfig"] )
+libenv.PrependUnique( LIBPATH=[env['build_base']+"external/libconfig"] )
+libenv.PrependUnique( LIBS=["libconfigpp"] )
+
+#env1.AppendUnique( LINKFLAGS = env.Split("-Wl,-rpath $libdir -Wl,-soname -Wl,libffado.so.1 --version-info=1:0:0") )
+ffadolib = libenv.SharedLibrary( "ffado", source )
+
+if libenv['BUILD_STATIC_LIB']:
+    ffadolib_static = libenv.StaticLibrary( "ffado", source )
+
+libenv.Install( "$libdir", ffadolib )
+
+#
+# Install the pkgdata to $sharedir
+#
+for data in pkgdata:
+	libenv.Install( "$sharedir", data )
+
+#
+# For the debugging apps
+#
+env2 = libenv.Clone()
+env2.PrependUnique( LIBPATH=env['build_base']+"src" )
+env2.PrependUnique( LIBS="ffado" )
+
+apps = { \
+}
+
+installapps = []
+
+for app in apps.keys():
+	env2.Program( target=app, source = env.Split( apps[app] ) )
+	if app.find( "test" ) == -1:
+		env2.Install( "$bindir", app )
+
