@@ -84,10 +84,10 @@
    <item row="0" column="0" colspan="2">
     <widget class="QGroupBox" name="StandaloneMode">
      <property name="enabled">
-      <bool>false</bool>
+      <bool>true</bool>
      </property>
      <property name="toolTip">
-      <string>not implemented</string>
+      <string/>
      </property>
      <property name="statusTip">
       <string/>
@@ -101,6 +101,12 @@
      <layout class="QGridLayout" name="gridLayout_3">
       <item row="0" column="1">
        <widget class="QComboBox" name="syncSource">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="toolTip">
+         <string/>
+        </property>
         <item>
          <property name="text">
           <string>Internal</string>
@@ -125,6 +131,12 @@
       </item>
       <item row="2" column="0">
        <widget class="QLabel" name="label_5">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="toolTip">
+         <string/>
+        </property>
         <property name="text">
          <string>Optical port B mode</string>
         </property>
@@ -135,6 +147,9 @@
         <property name="enabled">
          <bool>false</bool>
         </property>
+        <property name="toolTip">
+         <string/>
+        </property>
         <property name="text">
          <string>Sample rate</string>
         </property>
@@ -144,6 +159,9 @@
        <widget class="QLabel" name="label_3">
         <property name="enabled">
          <bool>false</bool>
+        </property>
+        <property name="toolTip">
+         <string/>
         </property>
         <property name="text">
          <string>Sync source</string>
@@ -159,6 +177,12 @@
       </item>
       <item row="1" column="1">
        <widget class="QComboBox" name="sampleRate">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="toolTip">
+         <string/>
+        </property>
         <item>
          <property name="text">
           <string>44.1 kHz</string>
@@ -193,6 +217,12 @@
       </item>
       <item row="2" column="1">
        <widget class="QComboBox" name="opticalBMode">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="toolTip">
+         <string/>
+        </property>
         <item>
          <property name="text">
           <string>ADAT</string>
@@ -209,12 +239,12 @@
        <widget class="QComboBox" name="converterMode">
         <item>
          <property name="text">
-          <string>A/D</string>
+          <string>A/D - D/A</string>
          </property>
         </item>
         <item>
          <property name="text">
-          <string>A/D - D/A</string>
+          <string>A/D</string>
          </property>
         </item>
        </widget>

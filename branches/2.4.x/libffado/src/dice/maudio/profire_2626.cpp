@@ -357,6 +357,17 @@ Profire2626::Profire2626EAP::SettingsSection::SettingsSection(
                                       <<(MAUDIO_PROFIRE2626_REGISTER_APP_VOLUME_KNOB_SHIFT+i));
         grp_volumeknob->addElement(outputPair);
     }
+
+
+    Control::Container* grp_standalone = new Control::Container(m_eap, "Standalone");
+    addElement(grp_standalone);
+
+    Profire2626EAP::Switch* controllerMode =
+        new Profire2626EAP::Switch(m_eap, "ControllerMode", 
+                                 MAUDIO_PROFIRE2626_REGISTER_APP_CONTROLLER_MODE_OFFSET,
+                                 MAUDIO_PROFIRE2626_REGISTER_APP_CONTROLLER_MODE_VALUE
+                                      <<MAUDIO_PROFIRE2626_REGISTER_APP_CONTROLLER_MODE_SHIFT);
+    grp_standalone->addElement(controllerMode);
 }
 
 /**

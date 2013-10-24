@@ -105,6 +105,13 @@ class Profire2626(Generic_Dice_EAP):
             l.widget.setChecked(l.Interface.selected())
             l.widget.toggled.connect(l.Interface.select)
 
+        # Standalone mode
+        # - Controller mode
+        self.StandaloneMode = []
+        p = LineInfo(widget.converterMode, BooleanControl(self.hw, self.hw.basepath+"/EAP/Settings/Standalone/ControllerMode"))
+        self.connect(p.widget, QtCore.SIGNAL("currentIndexChanged(int)"), p.Interface.select)
+        self.StandaloneMode.append(p)
+
     def getDisplayTitle(self):
         return "M-Audio Profire 2626 Mixer"
 
