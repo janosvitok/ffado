@@ -42,7 +42,6 @@
 #include <stdint.h>
 #include <assert.h>
 #include <unistd.h>
-#include "libutil/ByteSwap.h"
 
 #include <iostream>
 #include <sstream>
@@ -754,7 +753,7 @@ Device::resetForStreaming() {
     // sent to it and the rx stream will fail to start.
     err = hardware_init_streaming(dev_config->hardware_freq, iso_tx_channel) != 0;
     if (err) {
-        debugFatal("Could not intialise device streaming system\n");
+        debugFatal("Could not initialise device streaming system\n");
         return false;
     }
 

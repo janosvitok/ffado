@@ -38,6 +38,7 @@ from ffado.mixer.dummy import Dummy
 
 import sys
 import time
+import importlib
 
 import logging
 log = logging.getLogger('panelmanager')
@@ -302,20 +303,15 @@ class PanelManager(QWidget):
         #
         # Specific (or dummy) mixer widgets get loaded in the following
         #
+        found = False
         if 'mixer' in dev and dev['mixer'] != None:
             mixerapp = dev['mixer']
-            global mixerwidget
-            exec( """
-try:
-    import ffado.mixer.%s
-    globals()["mixerwidget"] = ffado.mixer.%s.%s( w )
-    found = True
-except ImportError:
-    log.debug("bypassdbus set, %s module not available: ignored")
-    found = False
-""" % (mixerapp.lower(), mixerapp.lower(), mixerapp, mixerapp.lower()) )
-        else:
-            found = False
+            try:
+                mixer_module = importlib.import_module("ffado.mixer.%s" % mixerapp.lower())
+                mixerwidget = getattr(mixer_module, mixerapp)(w)
+                found = True
+            except ImportError:
+                log.debug("bypassdbus set, %s module not available: ignored" % mixerapp.lower())
 
         if not found:
             mixerwidget = Dummy( w )
@@ -378,7 +374,7 @@ except ImportError:
         action = self.sender()
         # Extract the action data and store as a dbus.String type so 
         # it is usable as a key into self.panels[].
-        panel_key = dbus.String(action.data().toString())
+        panel_key = dbus.String(action.data().toString() if ffado_pyqt_version == 4 else action.data())
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.panels[panel_key]))
 
     def displayPanels(self):
@@ -515,6 +511,8 @@ except ImportError:
           saveString.append('</device>\n')
         # file saving
         savefilename = QFileDialog.getSaveFileName(self, 'Save File', os.getenv('HOME'))
+        if isinstance(savefilename, tuple): # newer PyQt5
+            savefilename = savefilename[0]
         try:
           f = open(savefilename, 'w')
         except IOError:
@@ -526,6 +524,8 @@ except ImportError:
 
     def readSettings(self):
         readfilename = QFileDialog.getOpenFileName(self, 'Open File', os.getenv('HOME'))
+        if isinstance(readfilename, tuple): # newer PyQt5
+            readfilename = readfilename[0]
         try:
           f = open(readfilename, 'r')
         except IOError:

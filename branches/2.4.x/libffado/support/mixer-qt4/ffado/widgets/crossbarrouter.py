@@ -98,7 +98,7 @@ of the mixer is an available output from the routers point.
             self.combo.setCurrentIndex(self.combo.findText(src))
         else:
             self.combo.setCurrentIndex(0)
-        self.combo.activated.connect(self.comboCurrentChanged)
+        self.combo.activated[str].connect(self.comboCurrentChanged)
 
 
     def peakValue(self, value):
@@ -168,7 +168,10 @@ class CrossbarRouter(QWidget):
         self.timer.setInterval(200)
         self.timer.timeout.connect(self.updateLevels)
 
-        self.vubtn.setChecked(self.settings.value("crossbarrouter/runvu", False).toBool())
+        if ffado_pyqt_version == 4:
+            self.vubtn.setChecked(self.settings.value("crossbarrouter/runvu", False).toBool())
+        else:
+            self.vubtn.setChecked(self.settings.value("crossbarrouter/runvu", False) == u'true')
 
     def __del__(self):
         print( "CrossbarRouter.__del__()" )
@@ -191,7 +194,7 @@ class CrossbarRouter(QWidget):
         #log.debug("Got %i peaks" % len(peakvalues))
         for peak in peakvalues:
             #log.debug("peak = [%s,%s]" % (str(peak[0]),str(peak[1])))
-            if peak[0] >= 0:
+            if peak[1] >= 0:
                 self.switchers[peak[0]].peakValue(peak[1])
 
     def updateMixerRouting(self):

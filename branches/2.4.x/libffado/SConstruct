@@ -22,19 +22,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+from __future__ import print_function
 
 FFADO_API_VERSION = "9"
 FFADO_VERSION="2.4.0"
 
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, check_output
 import os
 import re
+import sys
 from string import Template
-import imp
 import distutils.sysconfig
 
 if not os.path.isdir( "cache" ):
-	os.makedirs( "cache" )
+    os.makedirs( "cache" )
 
 opts = Variables( "cache/options.cache" )
 
@@ -49,6 +50,7 @@ checks in the code.""", True ),
     PathVariable( "LIBDIR", "Overwrite the directory where libs are installed to.", "$PREFIX/lib", PathVariable.PathAccept ),
     PathVariable( "INCLUDEDIR", "Overwrite the directory where headers are installed to.", "$PREFIX/include", PathVariable.PathAccept ),
     PathVariable( "SHAREDIR", "Overwrite the directory where misc shared files are installed to.", "$PREFIX/share/libffado", PathVariable.PathAccept ),
+    PathVariable( "LIBDATADIR", "Location for architecture-dependent data.", "$LIBDIR/libffado", PathVariable.PathAccept ),
     PathVariable( "MANDIR", "Overwrite the directory where manpages are installed", "$PREFIX/man", PathVariable.PathAccept ),
     PathVariable( "PYPKGDIR", "The directory where the python modules get installed.",
         distutils.sysconfig.get_python_lib( prefix="$PREFIX" ), PathVariable.PathAccept ),
@@ -68,6 +70,7 @@ Enable/Disable the the generic avc part (mainly used by apple).
   this code.""", False ),
     BoolVariable( "ENABLE_ALL", "Enable/Disable support for all devices.", False ),
     BoolVariable( "SERIALIZE_USE_EXPAT", "Use libexpat for XML serialization.", False ),
+    EnumVariable( "BUILD_DOC", "Build API documentation", 'none', allowed_values=('all', 'user', 'none'), ignorecase=2),
     EnumVariable( "BUILD_MIXER", "Build the ffado-mixer", 'auto', allowed_values=('auto', 'true', 'false'), ignorecase=2),
     BoolVariable( "BUILD_TESTS", """\
 Build the tests in their directory. As some contain quite some functionality,
@@ -82,6 +85,7 @@ Build the tests in their directory. As some contain quite some functionality,
     BoolVariable( "CUSTOM_ENV", "Respect CC, CXX, CFLAGS, CXXFLAGS and LDFLAGS.\nOnly meant for distributors and gentoo-users who want to over-optimize their build.\n Using this is not supported by the ffado-devs!", False ),
     ( "COMPILE_FLAGS", "Deprecated (use CFLAGS and CXXFLAGS with CUSTOM_ENV=True instead).  Add additional flags to the environment.\nOnly meant for distributors and gentoo-users who want to over-optimize their build.\n Using this is not supported by the ffado-devs!" ),
     EnumVariable( "ENABLE_SETBUFFERSIZE_API_VER", "Report API version at runtime which includes support for dynamic buffer resizing (requires recent jack).", 'auto', allowed_values=('auto', 'true', 'false', 'force'), ignorecase=2),
+    ("PYTHON_INTERPRETER", "Python interpreter to be used by FFADO installation.", "/usr/bin/python"),
 
     )
 
@@ -142,7 +146,7 @@ Help( opts.GenerateHelpText( env ) )
 
 # make sure the necessary dirs exist
 if not os.path.isdir( "cache" ):
-	os.makedirs( "cache" )
+    os.makedirs( "cache" )
 if not os.path.isdir( 'cache/objects' ):
     os.makedirs( 'cache/objects' )
 
@@ -152,9 +156,9 @@ opts.Save( 'cache/options.cache', env )
 
 def ConfigGuess( context ):
     context.Message( "Trying to find the system triple: " )
-    ret = os.popen( "/bin/sh admin/config.guess" ).read()[:-1]
+    ret = check_output(("/bin/sh", "admin/config.guess")).rstrip()
     context.Result( ret )
-    return ret
+    return ret.decode()
 
 def CheckForApp( context, app ):
     context.Message( "Checking whether '" + app + "' executes " )
@@ -164,7 +168,7 @@ def CheckForApp( context, app ):
 
 def CheckForPyModule( context, module ):
     context.Message( "Checking for the python module '" + module + "' " )
-    ret = context.TryAction( "python $SOURCE", "import %s" % module, ".py" )
+    ret = context.TryAction( "$PYTHON_INTERPRETER $SOURCE", "import %s" % module, ".py" )
     context.Result( ret[0] )
     return ret[0]
 
@@ -215,26 +219,29 @@ conf = Configure( env,
 
 version_re = re.compile(r'^(\d+)\.(\d+)\.(\d+)')
 
-def VersionInt(vers):
-    match = version_re.match(vers)
-    if not match:
-        return -1
-    (maj, min, patch) = match.group(1, 2, 3)
-    # For now allow "min" to run up to 65535.  "maj" and "patch" are 
-    # restricted to 0-255.
-    return (int(maj) << 24) | (int(min) << 8) | int(patch)
-
 def CheckJackdVer():
-    # Suppress newline in python 2 and 3
-    sys.stdout.write('Checking jackd version...')
-    sys.stdout.flush()
-    ret = Popen("which jackd >/dev/null 2>&1 && jackd --version | tail -n 1 | cut -d ' ' -f 3", shell=True, stdout=PIPE).stdout.read()[:-1].decode()
-    if (ret == ""):
+    print('Checking jackd version...', end='')
+    popen = Popen(("which", 'jackd'), stdout=PIPE, stderr=PIPE)
+    stdout, stderr = popen.communicate()
+    assert popen.returncode in (0, 1), "which returned a unexpected status"
+    if popen.returncode == 1:
         print("not installed")
-        return -1
-    else:
-        print(ret)
-    return VersionInt(ret)
+        return None
+    jackd = stdout.decode ().rstrip ()
+    ret = check_output ((jackd, '--version')).decode() .rstrip ()
+    ret = ret.split ('\n') [-1]; # Last line.
+    ret = ret.split () [2];      # Third field.
+    if not version_re.match (ret):
+        print("failed to parse version")
+        return None
+    print (ret)
+
+    # Trim off any "rc" (release candidate) components from the end of the
+    # version string
+    ret = ret.split ('rc')[0]
+    ret = ret.split ('.')
+    ret = map (int, ret)
+    return tuple (ret)
 
 if env['SERIALIZE_USE_EXPAT']:
     env['SERIALIZE_USE_EXPAT']=1
@@ -283,7 +290,7 @@ if not env.GetOption('clean'):
         if not('libxml++-3.0' in pkgs):
             pkgs['libxml++-2.6'] = '2.13.0'
 
-    # Provide a way for users to compile newer libffado which will work 
+    # Provide a way for users to compile newer libffado which will work
     # against older jack installations which will not accept the new API
     # version reported at runtime.
     have_jack = conf.CheckPKG('jack')
@@ -292,27 +299,27 @@ if not env.GetOption('clean'):
         good_jack2 = conf.CheckPKG('jack >= 1.9.9')
     else:
         jackd_ver = CheckJackdVer()
-        if (jackd_ver != -1):
+        if jackd_ver:
             # If jackd is unknown to pkg-config but is never-the-less
             # runnable, use the version number reported by it.  This means
             # users don't have to have jack development files present on
             # their system for this to work.
-            have_jack = (jackd_ver >= VersionInt('0.0.0'))
-            good_jack1 = (jackd_ver < VersionInt('1.9.0')) and (jackd_ver >= VersionInt('0.121.4'))
-            good_jack2 = (jackd_ver >= VersionInt('1.9.9'))
+            have_jack = jackd_ver >= (0, 0, 0)
+            good_jack1 = jackd_ver < (1, 9, 0) and jackd_ver >= (0, 121, 4)
+            good_jack2 = jackd_ver >= (1, 9, 9)
 
     if env['ENABLE_SETBUFFERSIZE_API_VER'] == 'auto':
         if not(have_jack):
             print("""
-No Jack Audio Connection Kit (JACK) installed: assuming a FFADO 
+No Jack Audio Connection Kit (JACK) installed: assuming a FFADO
 setbuffersize-compatible version will be used.
 """)
         elif not(good_jack1 or good_jack2):
             FFADO_API_VERSION="8"
             print("""
-Installed Jack Audio Connection Kit (JACK) jack does not support FFADO 
-setbuffersize API: will report earlier API version at runtime.  Consider 
-upgrading to jack1 >=0.122.0 or jack2 >=1.9.9 at some point, and then 
+Installed Jack Audio Connection Kit (JACK) jack does not support FFADO
+setbuffersize API: will report earlier API version at runtime.  Consider
+upgrading to jack1 >=0.122.0 or jack2 >=1.9.9 at some point, and then
 recompile ffado to gain access to this added feature.
 """)
         else:
@@ -320,13 +327,13 @@ recompile ffado to gain access to this added feature.
     elif env['ENABLE_SETBUFFERSIZE_API_VER'] == 'true':
         if (have_jack and not(good_jack1) and not(good_jack2)):
             print("""
-SetBufferSize API version is enabled but no suitable version of Jack Audio 
-Connection Kit (JACK) has been found.  The resulting FFADO would cause your 
-jackd to abort with "incompatible FFADO version".  Please upgrade to 
+SetBufferSize API version is enabled but no suitable version of Jack Audio
+Connection Kit (JACK) has been found.  The resulting FFADO would cause your
+jackd to abort with "incompatible FFADO version".  Please upgrade to
 jack1 >=0.122.0 or jack2 >=1.9.9, or set ENABLE_SETBUFFERSIZE_API_VER to "auto"
 or "false".
 """)
-            # Although it's not strictly an error, in almost every case that 
+            # Although it's not strictly an error, in almost every case that
             # this occurs the user will want to know about it and fix the
             # problem, so we exit so they're guaranteed of seeing the above
             # message.
@@ -357,7 +364,7 @@ results above get rechecked.
 """)
         Exit( 1 )
 
-    # libxml++-2.6 requires a c++11 compiler as of version 2.39.1.  The 
+    # libxml++-2.6 requires a c++11 compiler as of version 2.39.1.  The
     # gnu++11 standard seems to work both with these later libxml++ versions
     # and ffado itself, although a significant number of warnings are
     # produced.  Add the necessary option to CXXFLAGS if required.
@@ -395,22 +402,24 @@ results above get rechecked.
 
 # PyQT checks
 if env['BUILD_MIXER'] != 'false':
-    have_dbus = (conf.CheckForApp( 'which pyuic4' ) and conf.CheckForPyModule( 'dbus.mainloop.qt' ))
-    have_pyqt4 = (conf.CheckForApp( 'which pyuic4' ) and conf.CheckForPyModule( 'PyQt4' ))
-    have_pyqt5 = (conf.CheckForApp( 'which pyuic5' ) and conf.CheckForPyModule( 'PyQt5' ))
-    if ((have_pyqt4 or have_pyqt5) and have_dbus):
+    if  (    conf.CheckForApp( 'which pyuic4' ) \
+         and conf.CheckForPyModule( 'PyQt4' ) \
+         and conf.CheckForPyModule( 'dbus.mainloop.qt' )) \
+     or (    conf.CheckForApp( 'which pyuic5' ) \
+         and conf.CheckForPyModule( 'PyQt5' ) \
+         and conf.CheckForPyModule( 'dbus.mainloop.pyqt5' )):
         env['BUILD_MIXER'] = 'true'
     elif not env.GetOption('clean'):
         if env['BUILD_MIXER'] == 'auto':
             env['BUILD_MIXER'] = 'false'
             print("""
-The prerequisites ('pyuic4'/'pyuic5' and the python-modules 'dbus' and 
-'PyQt4'/'PyQt5', the packages could be named like dbus-python and PyQt) to 
+The prerequisites ('pyuic4'/'pyuic5' and the python-modules 'dbus' and
+'PyQt4'/'PyQt5', the packages could be named like dbus-python and PyQt) to
 build the mixer were not found. Therefore the qt mixer will not be installed.""")
         else: # env['BUILD_MIXER'] == 'true'
             print("""
-The prerequisites ('pyuic4'/'pyuic5' and the python-modules 'dbus' and 
-'PyQt4'/'PyQt5', the packages could be named like dbus-python and PyQt) to 
+The prerequisites ('pyuic4'/'pyuic5' and the python-modules 'dbus' and
+'PyQt4'/'PyQt5', the packages could be named like dbus-python and PyQt) to
 build the mixer were not found, but BUILD_MIXER was requested.""")
             Exit( 1 )
 
@@ -515,26 +524,32 @@ env['BINDIR'] = Template( env['BINDIR'] ).safe_substitute( env )
 env['LIBDIR'] = Template( env['LIBDIR'] ).safe_substitute( env )
 env['INCLUDEDIR'] = Template( env['INCLUDEDIR'] ).safe_substitute( env )
 env['SHAREDIR'] = Template( env['SHAREDIR'] ).safe_substitute( env )
+env['LIBDATADIR'] = Template( env['LIBDATADIR'] ).safe_substitute( env )
 env['UDEVDIR'] = Template( env['UDEVDIR'] ).safe_substitute( env )
+env['PYTHON_INTERPRETER'] = Template( env['PYTHON_INTERPRETER'] ).safe_substitute( env )
 env['prefix'] = Template( env.destdir + env['PREFIX'] ).safe_substitute( env )
 env['bindir'] = Template( env.destdir + env['BINDIR'] ).safe_substitute( env )
 env['libdir'] = Template( env.destdir + env['LIBDIR'] ).safe_substitute( env )
 env['includedir'] = Template( env.destdir + env['INCLUDEDIR'] ).safe_substitute( env )
 env['sharedir'] = Template( env.destdir + env['SHAREDIR'] ).safe_substitute( env )
+env['libdatadir'] = Template( env.destdir + env['LIBDATADIR'] ).safe_substitute( env )
 env['mandir'] = Template( env.destdir + env['MANDIR'] ).safe_substitute( env )
 env['pypkgdir'] = Template( env.destdir + env['PYPKGDIR'] ).safe_substitute( env )
 env['udevdir'] = Template( env.destdir + env['UDEVDIR'] ).safe_substitute( env )
 env['PYPKGDIR'] = Template( env['PYPKGDIR'] ).safe_substitute( env )
+env['metainfodir'] = Template( env.destdir + "/usr/share/metainfo" ).safe_substitute( env )
 
 env.Command( target=env['sharedir'], source="", action=Mkdir( env['sharedir'] ) )
 
 env.Alias( "install", env['libdir'] )
 env.Alias( "install", env['includedir'] )
 env.Alias( "install", env['sharedir'] )
+env.Alias( "install", env['libdatadir'] )
 env.Alias( "install", env['bindir'] )
 env.Alias( "install", env['mandir'] )
 if env['BUILD_MIXER'] == 'true':
     env.Alias( "install", env['pypkgdir'] )
+    env.Alias( "install", env['metainfodir'] )
 
 #
 # shamelessly copied from the Ardour scons file
@@ -553,25 +568,17 @@ config = config_guess.split ("-")
 
 needs_fPIC = False
 
-#=== Begin Revised CXXFLAGS ========================================= 
-def outputof(*cmd):
-    """Run a command without running a shell, return cmd's stdout
-    """
-    p = Popen(cmd, stdout=PIPE)
-    return p.communicate()[0]
-
+#=== Begin Revised CXXFLAGS =========================================
 def cpuinfo_kv():
     """generator which reads lines from Linux /proc/cpuinfo and splits them
     into key:value tokens and yields (key, value) tuple.
     """
-    f = open('/proc/cpuinfo', 'r')
-    for line in f:
+    with open('/proc/cpuinfo', 'r') as f:
+      for line in f:
         line = line.strip()
         if line:
             k,v = line.split(':', 1)
             yield (k.strip(), v.strip())
-    f.close()
-
 
 class CpuInfo (object):
     """Collects information about the CPU, mainly from /proc/cpuinfo
@@ -688,7 +695,7 @@ def is_userspace_32bit(cpuinfo):
     # run a completely 32-bit system on a 64-bit capable CPU.
     answer = None
 
-    # If setting DIST_TARGET to i686 on a 64-bit CPU to facilitate 
+    # If setting DIST_TARGET to i686 on a 64-bit CPU to facilitate
     # compilation of a multilib environment, force 32-bit.
     if env['DIST_TARGET'] == 'i686':
         return True
@@ -705,7 +712,7 @@ def is_userspace_32bit(cpuinfo):
             real_exe = exe
         # presumably if a person is running this script, they should have
         # a gcc toolchain installed...
-        x = outputof('objdump', '-Wi', real_exe)
+        x = check_output(('objdump', '-Wi', real_exe)).decode()
         # should emit a line that looks like this:
         # /bin/mount:     file format elf32-i386
         # or like this:
@@ -846,20 +853,28 @@ if env['ENABLE_OPTIMIZATIONS']:
     env.MergeFlags( opt_flags )
     print("Doing an optimized build...")
 
-env['REVISION'] = os.popen('svnversion .').read()[:-1]
+try:
+    env['REVISION'] = check_output(('svnversion', '.',)).decode().rstrip()
+except:
+    env['REVISION'] = ''
+
 # This may be as simple as '89' or as complex as '4123:4184M'.
 # We'll just use the last bit.
 env['REVISION'] = env['REVISION'].split(':')[-1]
 
+# Assume an unversioned directory indicates a release.
+if env['REVISION'].startswith ('Unversioned'):
+    env['REVISION'] = ''
+
 # try to circumvent localized versions
-if len(env['REVISION']) >= 5 and env['REVISION'][0:6] == 'export':
+if env['REVISION'].startswith ('export'):
     env['REVISION'] = ''
 
 # avoid the 1.999.41- type of version for exported versions
 if env['REVISION'] != '':
-	env['REVISIONSTRING'] = '-' + env['REVISION']
+    env['REVISIONSTRING'] = '-' + env['REVISION']
 else:
-	env['REVISIONSTRING'] = ''
+    env['REVISIONSTRING'] = ''
 
 env['FFADO_API_VERSION'] = FFADO_API_VERSION
 
@@ -916,6 +931,10 @@ if not env.GetOption('clean'):
     Default( 'support' )
     if env['BUILD_TESTS']:
         Default( 'tests' )
+    if env['BUILD_DOC'] != 'none':
+        Default( 'doc' )
+
+env.Install( env['metainfodir'], "support/xdg/ffado-mixer.appdata.xml" )
 
 #
 # Deal with the DESTDIR vs. xdg-tools conflict (which is basicely that the
